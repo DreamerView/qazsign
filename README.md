@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QazSign
 
-## Getting Started
+QazSign is a modern web application built with Next.js, designed for seamless digital signing and verification of documents. With a clean interface and robust features, QazSign makes secure document handling effortless.
 
-First, run the development server:
+## 🚀 Features
+
+- **Digital Signing:** Easily sign documents online with a user-friendly interface.
+- **Verification:** Instantly verify the authenticity of signed documents.
+- **Modern UI:** Responsive and intuitive design for all devices.
+- **Fast & Secure:** Built with Next.js for optimal performance and security.
+- **Customizable:** Easily extend and adapt to your needs.
+
+## 🛠️ Getting Started
+
+To run QazSign locally, follow these steps:
 
 ```bash
+npm install
 npm run dev
 # or
+yarn install
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser to view the app.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## 📁 Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `app/` – Main application pages and routes
+- `components/` – Reusable UI components
+- `public/` – Static assets (images, icons)
+- `styles/` – Global and modular CSS
 
-## Learn More
+## 📦 Built With
 
-To learn more about Next.js, take a look at the following resources:
+- [Next.js](https://nextjs.org/) – The React Framework for Production
+- [React](https://react.dev/) – UI Library
+- [Vercel](https://vercel.com/) – Deployment and Hosting
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🌐 Live Demo
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+[https://qazsign.vercel.app](https://qazsign.vercel.app)
 
-## Deploy on Vercel
+## 🤝 Contributing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Contributions are welcome! Please open an issue or submit a pull request for any improvements or suggestions.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📄 License
+
+This project is licensed under the MIT License.

@@ -5,39 +5,125 @@ import { NCALayerClient } from 'ncalayer-js-client';
 
 const Page = () => {
     const [client, setClient] = useState(null);
-    const [keys, setKeys] = useState([]);
-    const [error, setError] = useState('');
+    const [keys, setKeys] = useState([])
+    // --- Добавлено для подписания PDF ---
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [signStatus, setSignStatus] = useState('');
+    const [signedData, setSignedData] = useState('');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    // --- конец добавленного ---
 
-    useEffect(() => {
-        const initClient = async () => {
-            const nc = new NCALayerClient();
-            try {
-                await nc.connect(); // подключаемся к NCALayer
-                setClient(nc);
-            } catch (e) {
-                setError('Не удалось подключиться к NCALayer. Убедитесь, что он запущен.');
-            }
-        };
-        initClient();
-    }, []);
+    // --- Функции для подписания PDF ---
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        setSelectedFile(file);
+    };
 
-    const handleGetKeys = async () => {
-        if (!client) return;
+    const toBase64 = async (file) => {
+        const buffer = await file.arrayBuffer();
+        const uint8 = new Uint8Array(buffer);
+        let binary = "";
+        for (let byte of uint8) {
+            binary += String.fromCharCode(byte);
+        }
+        return btoa(binary);
+    };
 
+    const handleSignPdf = async () => {
+        if (!selectedFile) {
+            setError('Выберите PDF-файл');
+            return;
+        }
+        setError(null);
+        setSignStatus('📄 Чтение PDF-файла...');
         setLoading(true);
-        setError('');
-        
+        setSignedData('');
+        let client = null;
         try {
-            const result = await client.getKeyInfo("PKCS12", "NONE");
-            const keys = Array.isArray(result) ? result : [result];
-            setKeys(keys.map((key, index) => ({ ...key, originalIndex: index })));
-        } catch (e) {
-            setError('Ошибка при получении ключей: ' + e.message);
+            const base64 = await toBase64(selectedFile);
+            client = new NCALayerClient();
+            setSignStatus('🔐 Подключение к NCALayer...');
+            await client.connect();
+            setSignStatus('📂 Подписание...');
+            const result = await client.basicsSignCMS(
+                NCALayerClient.basicsStoragesAll,
+                base64,
+                NCALayerClient.basicsCMSParamsDetached,
+                NCALayerClient.basicsSignerSignAny,
+            );
+            // --- Проверка результата ---
+            if (typeof result !== 'string') {
+                setError('Ошибка: Некорректный ответ от NCALayer');
+                setSignStatus('❌ Ошибка при подписании');
+                return;
+            }
+            // Если это JSON с ошибкой
+            try {
+                const parsed = JSON.parse(result);
+                if (parsed && (parsed.message || parsed.code)) {
+                    setError('Ошибка от NCALayer: ' + (parsed.message || JSON.stringify(parsed)));
+                    setSignStatus('❌ Ошибка при подписании');
+                    return;
+                }
+            } catch (e) { /* не JSON, всё ок */ }
+            setSignedData(result);
+            setSignStatus('✅ PDF подписан успешно');
+        } catch (err) {
+            setError('Ошибка: ' + (err.message || err));
+            setSignStatus('❌ Ошибка при подписании');
         } finally {
             setLoading(false);
+            if (client && client.socket?.readyState === WebSocket.OPEN) {
+                client.socket.close();
+            }
         }
     };
+
+    // --- Проверка base64 ---
+    function isBase64(str) {
+        if (!str || typeof str !== 'string') return false;
+        // base64 обычно кратна 4, содержит только A-Za-z0-9+/ и может заканчиваться =
+        return /^[A-Za-z0-9+/]+={0,2}$/.test(str) && str.length % 4 === 0;
+    }
+    // --- Проверка PEM CMS ---
+    function isPemCms(str) {
+        if (!str || typeof str !== 'string') return false;
+        return str.includes('-----BEGIN CMS-----') && str.includes('-----END CMS-----');
+    }
+
+    const downloadP7s = (data) => {
+        let base64 = data;
+        if (isPemCms(data)) {
+            // Извлечь base64 между PEM заголовками
+            const match = data.match(/-----BEGIN CMS-----([\s\S]*?)-----END CMS-----/);
+            if (match && match[1]) {
+                base64 = match[1].replace(/\s+/g, '');
+            } else {
+                setError('Ошибка: Не удалось извлечь base64 из PEM CMS');
+                return;
+            }
+        }
+        if (!isBase64(base64)) {
+            setError('Ошибка: Подпись не является корректной base64-строкой!');
+            return;
+        }
+        try {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: "application/pkcs7-signature" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = selectedFile?.name.replace(/\.pdf$/i, "") + ".p7s";
+            link.click();
+        } catch (e) {
+            setError('Ошибка при декодировании base64: ' + (e.message || e));
+        }
+    };
+    // --- конец функций для подписания PDF ---
 
     return (
         <div className="container-xl">
@@ -45,33 +131,44 @@ const Page = () => {
                 <div className="col-12 mx-auto text-center" style={{ maxWidth: "600px" }}>
                     <div className="mb-4">
                         <div className="d-inline-flex align-items-center justify-content-center bg-primary text-white rounded-circle mb-3" style={{ width: "80px", height: "80px" }}>
-                            <i className="bi bi-person" style={{ fontSize: "2.5rem" }}></i>
+                            <i className="bi bi-pen" style={{ fontSize: "2.5rem" }}></i>
                         </div>
-                        <h2 className="m-0 mb-2">Информация о ЭЦП</h2>
+                        <h2 className="m-0 mb-2">Подпись документов</h2>
                         <p className="m-0 text-muted">
-                            Получите подробную информацию о ваших сертификатах электронной цифровой подписи
+                            Подпишите документы с помощью сертификата электронной цифровой подписи
                         </p>
                     </div>
                     
-                    <div className="d-flex flex-column align-items-center gap-3">
+                    <div className="d-flex flex-column align-items-center gap-3 mb-4">
+                        <input
+                            type="file"
+                            accept="application/pdf"
+                            onChange={handleFileChange}
+                            className="form-control mb-2"
+                            disabled={loading}
+                        />
                         <button
-                            className="btn btn-primary btn-lg rounded-4"
-                            onClick={handleGetKeys}
-                            disabled={!client || loading}
+                            className="btn btn-success btn-lg rounded-4"
+                            onClick={handleSignPdf}
+                            disabled={loading || !selectedFile}
                         >
                             {loading ? (
                                 <>
                                     <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                    Загрузка...
+                                    Подписание...
                                 </>
                             ) : (
                                 <>
-                                    <i className="bi bi-shield-check me-2"></i>
-                                    Получить информацию о сертификатах
+                                    <i className="bi bi-shield-check me-3"></i>
+                                    Подписать PDF
                                 </>
                             )}
                         </button>
-                        
+                        {signStatus && (
+                            <span className="badge bg-info text-dark py-2 px-3 rounded-4 text-wrap">
+                                {signStatus}
+                            </span>
+                        )}
                         {error && (
                             <span className="badge bg-danger text-white py-2 px-3 rounded-4 text-wrap">
                                 <i className="bi bi-exclamation-triangle-fill me-2"></i>
@@ -79,6 +176,7 @@ const Page = () => {
                             </span>
                         )}
                     </div>
+                    
                 </div>
             </div>
 
@@ -212,6 +310,31 @@ const Page = () => {
                     </div>
                 </div>
             )}
+            {/* --- Вывод результата подписи и кнопки скачивания --- */}
+            {signedData && (
+                <div className="row bg-body-tertiary p-4 rounded-5 mx-2 mt-4">
+                    <div className="col-12">
+                        <h5 className="mb-3">📎 Результат NCALayer:</h5>
+                        <textarea
+                            value={signedData}
+                            readOnly
+                            className="form-control mb-3"
+                            style={{ fontFamily: 'monospace', height: '200px', fontSize: '13px' }}
+                        />
+                        {(isBase64(signedData) || isPemCms(signedData)) ? (
+                            <button
+                                className="btn btn-outline-primary"
+                                onClick={() => downloadP7s(signedData)}
+                            >
+                                ⬇️ Скачать .p7s файл
+                            </button>
+                        ) : (
+                            <div className="text-danger mt-2">Результат не является корректной base64-строкой или PEM CMS. Это может быть текст ошибки или пустой ответ.</div>
+                        )}
+                    </div>
+                </div>
+            )}
+            {/* --- Конец вывода подписи --- */}
         </div>
     );
 };
